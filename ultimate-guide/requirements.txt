@@ -1,0 +1,6 @@
+pytz==2025.2
+pyzmq==26.2.1
+requests==2.32.3
+selenium==4.32.0
+ipykernel==6.29.5
+pandas==2.2.3
