@@ -6,6 +6,15 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
 import urllib.parse
 import csv
+from bs4 import BeautifulSoup
+
+
+def extract_email_from_text(text):
+
+    text = re.sub(r'\s*@\s*', '@', text)  # Remove space around @
+    # Now extract email
+    match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', text)
+    return match.group(0) if match else "NaN"
 
 
 def scrape_google_links(query: str, num_results: int = 10):
@@ -33,30 +42,53 @@ def scrape_google_links(query: str, num_results: int = 10):
     # search_box.send_keys(query + Keys.RETURN)
 
     # Wait for results to load (adjust time if needed)
-    time.sleep(40)
+    time.sleep(50)
 
-    result_blocks = driver.find_elements(By.CSS_SELECTOR, 'div.kb0PBd.A9Y9g.jGGQ5e')
-    
+    result_blocks = driver.find_elements(By.CSS_SELECTOR,'div.N54PNb.BToiNc')
+    print("Number of blocks found: ", len(result_blocks))
     results = []
     
     for block in result_blocks:
+        # print("Block: ", block)
         try:
             a_tag = block.find_element(By.CSS_SELECTOR, 'a')
             link = a_tag.get_attribute("href")
+            print("Link: ", link)
 
-            desc_tag = block.find_element(By.TAG_NAME, 'span')  # metadata/snippet
-            description = desc_tag.text.strip()
+            metadata_html = ""
+            description_html = ""
+            
+            
+            try:
+                metadata = block.find_element(By.CSS_SELECTOR, 'div.YrbPuc')
+                metadata_html = metadata.get_attribute("outerHTML")
+            except Exception as e:
+                pass
 
-            # Extract email if present
-            email_match = re.search(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+", description)
-            email = email_match.group(0) if email_match else "NaN"
+            try:
+                description = block.find_element(By.CSS_SELECTOR, 'div.VwiC3b')
+                description_html = description.get_attribute("outerHTML")
+            except Exception as e:
+                pass
+
+
+            # --- Combine and parse both ---
+            full_html = metadata_html + description_html
+            soup = BeautifulSoup(full_html, "html.parser")
+            text = soup.get_text(separator=" ", strip=True)
+            print("Full text:", text)
+
+
+            email = extract_email_from_text(text)
+            print("Email: ", email)
+            print()
+            
 
             if link:
                 results.append({
                     'link': link,
-                    'email': email
+                    'email': email,
                 })
-                print(f"[{len(results)}] {link}\n    {email}\n\n")
 
             if len(results) >= num_results:
                 break
@@ -70,15 +102,15 @@ def scrape_google_links(query: str, num_results: int = 10):
 
 
 # Example usage
-# if __name__ == "__main__":
-#     query = 'inurl:linkedin.com/in "@outlook.fr " "contact"'
-#     results = scrape_google_links(query, num_results=17)
+if __name__ == "__main__":
+    query = 'inurl:linkedin.com/in "@gmail.com " "coach"'
+    results = scrape_google_links(query, num_results=15)
 
-#     # Write results to a CSV file
-#     with open("google_results.csv", mode="w", newline="", encoding="utf-8") as file:
-#         writer = csv.DictWriter(file, fieldnames=["link", "email"])
-#         writer.writeheader()
-#         writer.writerows(results)
+    # Write results to a CSV file
+    with open("results.csv", mode="w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=["link", "email"])
+        writer.writeheader()
+        writer.writerows(results)
 
-#     print(f"\nSaved {len(results)} results to 'google_results.csv'")
+    print(f"\nSaved {len(results)} results to 'results.csv'")
 
